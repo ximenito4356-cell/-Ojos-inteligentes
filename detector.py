@@ -42,4 +42,50 @@ def procesar_imagen_array(imagen_cv, nombre_camara: str):
             nombre_es = NOMBRES_ES.get(nombre, nombre)
 
             x1, y1, x2, y2 = caja.xyxy[0]
-            punto_base =(float((x1 + x2) / 2), float((y1 + y2) / 2))
+            punto_base = (float((x1 + x2) / 2), float(y2))
+
+            dentro = cv2.pointPolygonTest(poligono, punto_base, False) >= 0
+            es_bus = nombre == "bus"
+            es_alerta = dentro and not es_bus
+            if es_alerta:
+                huvo_alerta = True
+
+            if es_alerta:
+                razon = (
+                    f"Se detectó un/a **{nombre_es}** (confianza {confianza:.0%}) "
+                    f"cuyo punto de apoyo cae **dentro** de la zona restringida, "
+                    f"y no es el autobús autorizado, entonces cuenta como riesgo."
+                )
+            elif dentro and es_bus:
+                razon = (
+                    f"Se detectó un **autobús** (confianza {confianza:.0%}) dentro de la zona, "
+                    f"pero es el vehículo autorizado, entonces no cuenta como riesgo."
+                )
+            else:
+                razon = (
+                    f"Se detectó un/a **{nombre_es}** (confianza {confianza:.0%}), "
+                    f"pero su punto de apoyo cae **fuera** de la zona restringida, entonces se considera sin riesgo."
+                )
+            explicaciones.append(razon)
+
+            color = (0, 0, 255) if es_alerta else (0, 255, 0)
+            x1i, y1i, x2i, y2i = map(int, (x1, y1, x2, y2))
+            cv2.rectangle(imagen_cv, (x1i, y1i), (x2i, y2i), color, 2)
+
+            etiqueta = (
+                f"ALERTA: invasion de zona ({nombre_es} {confianza:.2f})"
+                if es_alerta
+                else f"{nombre_es} {confianza:.2f} - sin riesgo"
+            )
+            pos_y_etiqueta = y1i - 10 if y1i > 40 else y2i + 20
+            cv2.putText(imagen_cv, etiqueta, (x1i, pos_y_etiqueta),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+    if not explicaciones:
+        explicaciones.append("No se detectó ningún vehículo ni peatón en la imagen.")
+
+    if huvo_alerta:
+        cv2.putText(imagen_cv, "Estado: pendiente de revision", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+    return imagen_cv, ("riesgo" if huvo_alerta else "normal"), explicaciones
