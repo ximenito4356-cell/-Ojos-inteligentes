@@ -29,7 +29,13 @@ def procesar_imagen_array(imagen_cv, nombre_camara: str):
     imagen_cv = cv2.addWeighted(overlay, 0.25, imagen_cv, 0.75, 0)
     cv2.polylines(imagen_cv, [poligono], isClosed=True, color=(0, 0, 255), thickness=2)
 
-    resultados = modelo.predict(source=imagen_cv, conf=0.15, save=False, verbose=False)
+    resultados = modelo.predict(
+        source=imagen_cv,
+        conf=0.15,
+        classes=[0, 1, 2, 3, 5, 7],  # persona, bicicleta, carro, moto, autobús, camión
+        save=False,
+        verbose=False,
+    )
 
     huvo_alerta = False
     explicaciones = []
