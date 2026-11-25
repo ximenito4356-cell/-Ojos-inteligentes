@@ -87,6 +87,19 @@ def procesar_imagen_array(imagen_cv, nombre_camara: str):
             cv2.putText(imagen_cv, etiqueta, (x1i, pos_y_etiqueta),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
+    # Resumen de conteo por tipo de objeto
+    conteo = {}
+    for resultado in resultados:
+        for caja in resultado.boxes:
+            nombre_obj = modelo.names[int(caja.cls[0])]
+            nombre_obj_es = NOMBRES_ES.get(nombre_obj, nombre_obj)
+            conteo[nombre_obj_es] = conteo.get(nombre_obj_es, 0) + 1
+
+    if conteo:
+        partes_resumen = [f"{cantidad} {tipo}" for tipo, cantidad in conteo.items()]
+        resumen = "Se detectaron en total: " + ", ".join(partes_resumen) + "."
+        explicaciones.insert(0, resumen)
+
     if not explicaciones:
         explicaciones.append("No se detectó ningún vehículo ni peatón en la imagen.")
 
