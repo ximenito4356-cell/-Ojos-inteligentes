@@ -22,61 +22,16 @@ NOMBRES_ES = {
 
 
 def detectar_carretera_automatica(imagen_cv):
-    """Traza un polígono aproximado de la zona de carretera/carril,
-    usando bordes y líneas detectadas, sin depender de zonas.json."""
+    """Define una zona amplia de 'calle/carril' usando una región fija
+    en la parte inferior de la imagen (más confiable que trazar líneas
+    exactas en fotos de calle con muchos bordes que confunden al algoritmo)."""
     alto, ancho = imagen_cv.shape[:2]
 
-    gris = cv2.cvtColor(imagen_cv, cv2.COLOR_BGR2GRAY)
-    difuminado = cv2.GaussianBlur(gris, (5, 5), 0)
-    bordes = cv2.Canny(difuminado, 50, 150)
-
-    mascara = np.zeros_like(bordes)
-    region = np.array([[
-        (0, alto),
-        (ancho, alto),
-        (int(ancho * 0.9), int(alto * 0.45)),
-        (int(ancho * 0.1), int(alto * 0.45)),
-    ]], dtype=np.int32)
-    cv2.fillPoly(mascara, region, 255)
-    bordes_region = cv2.bitwise_and(bordes, mascara)
-
-    lineas = cv2.HoughLinesP(bordes_region, 1, np.pi / 180, threshold=40,
-                              minLineLength=40, maxLineGap=100)
-
-    izquierdas, derechas = [], []
-    if lineas is not None:
-        for linea in lineas:
-            x1, y1, x2, y2 = linea.flatten()
-            if x2 == x1:
-                continue
-            pendiente = (y2 - y1) / (x2 - x1)
-            if abs(pendiente) < 0.3:
-                continue
-            if pendiente < 0:
-                izquierdas.append((x1, y1, x2, y2))
-            else:
-                derechas.append((x1, y1, x2, y2))
-
-    def promediar(lista, lado):
-        if not lista:
-            if lado == "izq":
-                return (int(ancho * 0.15), alto, int(ancho * 0.45), int(alto * 0.5))
-            else:
-                return (int(ancho * 0.85), alto, int(ancho * 0.55), int(alto * 0.5))
-        xs = [p[0] for p in lista] + [p[2] for p in lista]
-        ys = [p[1] for p in lista] + [p[3] for p in lista]
-        indice_max_y = ys.index(max(ys))
-        indice_min_y = ys.index(min(ys))
-        return (xs[indice_max_y], max(ys), xs[indice_min_y], min(ys))
-
-    xi1, yi1, xi2, yi2 = promediar(izquierdas, "izq")
-    xd1, yd1, xd2, yd2 = promediar(derechas, "der")
-
     poligono_auto = np.array([
-        [xi1, yi1],
-        [xi2, yi2],
-        [xd2, yd2],
-        [xd1, yd1],
+        [int(ancho * 0.03), alto],
+        [int(ancho * 0.40), int(alto * 0.42)],
+        [int(ancho * 0.75), int(alto * 0.42)],
+        [int(ancho * 0.97), alto],
     ], dtype=np.int32)
 
     return poligono_auto
