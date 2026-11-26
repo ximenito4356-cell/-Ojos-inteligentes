@@ -46,7 +46,7 @@ def detectar_carretera_automatica(imagen_cv):
     izquierdas, derechas = [], []
     if lineas is not None:
         for linea in lineas:
-            x1, y1, x2, y2 = linea[0]
+            x1, y1, x2, y2 = linea.flatten()
             if x2 == x1:
                 continue
             pendiente = (y2 - y1) / (x2 - x1)
