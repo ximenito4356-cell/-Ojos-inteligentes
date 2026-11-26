@@ -21,8 +21,72 @@ NOMBRES_ES = {
 }
 
 
+def detectar_carretera_automatica(imagen_cv):
+    """Traza un polígono aproximado de la zona de carretera/carril,
+    usando bordes y líneas detectadas, sin depender de zonas.json."""
+    alto, ancho = imagen_cv.shape[:2]
+
+    gris = cv2.cvtColor(imagen_cv, cv2.COLOR_BGR2GRAY)
+    difuminado = cv2.GaussianBlur(gris, (5, 5), 0)
+    bordes = cv2.Canny(difuminado, 50, 150)
+
+    mascara = np.zeros_like(bordes)
+    region = np.array([[
+        (0, alto),
+        (ancho, alto),
+        (int(ancho * 0.9), int(alto * 0.45)),
+        (int(ancho * 0.1), int(alto * 0.45)),
+    ]], dtype=np.int32)
+    cv2.fillPoly(mascara, region, 255)
+    bordes_region = cv2.bitwise_and(bordes, mascara)
+
+    lineas = cv2.HoughLinesP(bordes_region, 1, np.pi / 180, threshold=40,
+                              minLineLength=40, maxLineGap=100)
+
+    izquierdas, derechas = [], []
+    if lineas is not None:
+        for linea in lineas:
+            x1, y1, x2, y2 = linea[0]
+            if x2 == x1:
+                continue
+            pendiente = (y2 - y1) / (x2 - x1)
+            if abs(pendiente) < 0.3:
+                continue
+            if pendiente < 0:
+                izquierdas.append((x1, y1, x2, y2))
+            else:
+                derechas.append((x1, y1, x2, y2))
+
+    def promediar(lista, lado):
+        if not lista:
+            if lado == "izq":
+                return (int(ancho * 0.15), alto, int(ancho * 0.45), int(alto * 0.5))
+            else:
+                return (int(ancho * 0.85), alto, int(ancho * 0.55), int(alto * 0.5))
+        xs = [p[0] for p in lista] + [p[2] for p in lista]
+        ys = [p[1] for p in lista] + [p[3] for p in lista]
+        indice_max_y = ys.index(max(ys))
+        indice_min_y = ys.index(min(ys))
+        return (xs[indice_max_y], max(ys), xs[indice_min_y], min(ys))
+
+    xi1, yi1, xi2, yi2 = promediar(izquierdas, "izq")
+    xd1, yd1, xd2, yd2 = promediar(derechas, "der")
+
+    poligono_auto = np.array([
+        [xi1, yi1],
+        [xi2, yi2],
+        [xd2, yd2],
+        [xd1, yd1],
+    ], dtype=np.int32)
+
+    return poligono_auto
+
+
 def procesar_imagen_array(imagen_cv, nombre_camara: str):
-    poligono = np.array(ZONAS["camaras"][nombre_camara], dtype=np.int32)
+    if nombre_camara == "automatico":
+        poligono = detectar_carretera_automatica(imagen_cv)
+    else:
+        poligono = np.array(ZONAS["camaras"][nombre_camara], dtype=np.int32)
 
     overlay = imagen_cv.copy()
     cv2.fillPoly(overlay, [poligono], color=(60, 60, 220))
@@ -32,7 +96,7 @@ def procesar_imagen_array(imagen_cv, nombre_camara: str):
     resultados = modelo.predict(
         source=imagen_cv,
         conf=0.15,
-        classes=[0, 1, 2, 3, 5, 7],  # persona, bicicleta, carro, moto, autobús, camión
+        classes=[0, 1, 2, 3, 5, 7],
         save=False,
         verbose=False,
     )
@@ -87,7 +151,6 @@ def procesar_imagen_array(imagen_cv, nombre_camara: str):
             cv2.putText(imagen_cv, etiqueta, (x1i, pos_y_etiqueta),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-    # Resumen de conteo por tipo de objeto
     conteo = {}
     for resultado in resultados:
         for caja in resultado.boxes:
